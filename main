@@ -1,0 +1,41 @@
+import torch
+import torch.optim as optim
+import torch.nn as nn
+import torch.utils.data
+from utils.audio_processing import get_model, recognize_from_file, recognize_from_microphone
+from utils.training import MultiLayerNN, train_model, load_error_data
+
+
+language = input("Enter 'english' for English or 'russian' for Russian: ").strip().lower()
+model = get_model(language)
+
+
+mode = input("Enter 'file' to recognize from audio file or 'mic' to use the microphone: ").strip().lower()
+
+if mode == 'file':
+    file_path = input("Enter the path to the audio file: ").strip()
+    recognize_from_file(model, file_path)
+elif mode == 'mic':
+    recognize_from_microphone(model)
+else:
+    print("Invalid mode selected. Please enter 'file' or 'mic'.")
+
+
+inputs, targets = load_error_data()
+
+
+if inputs and targets:
+    input_size = max(len(max(inputs, key=len)), len(max(targets, key=len)))
+    hidden_size = 128
+    output_size = input_size
+    num_hidden_layers = 3  
+    inputs = [torch.tensor(i + [0] * (input_size - len(i)), dtype=torch.float32) for i in inputs]
+    targets = [torch.tensor(t + [0] * (input_size - len(t)), dtype=torch.float32) for t in targets]
+    dataset = list(zip(inputs, targets))
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=True)
+    model = MultiLayerNN(input_size, hidden_size, output_size, num_hidden_layers)
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    train_model(model, criterion, optimizer, data_loader)
+else:
+    print("No error data available for training.")
